@@ -25,8 +25,8 @@ cp .env.example .env
 # 3. Build and run with Docker Compose
 docker-compose up --build
 
-# Backend available at: http://localhost:8000
-# Frontend available at: http://localhost:8501
+# Backend available at: http://localhost:8010
+# Frontend available at: http://localhost:8511
 ```
 
 ### Local development without Docker
@@ -47,10 +47,10 @@ python -m spacy download it_core_news_sm
 playwright install chromium
 
 # Run backend
-uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn backend.main:app --host 0.0.0.0 --port 8010 --reload
 
 # Run frontend (in another terminal)
-streamlit run frontend/app.py --server.port 8501
+BACKEND_URL=http://localhost:8010 streamlit run frontend/app.py --server.port 8511
 ```
 
 ## Hetzner Deploy

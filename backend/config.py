@@ -6,8 +6,8 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str = ""
     OPENAI_API_KEY: str = ""
     ENVIRONMENT: str = "development"
-    FASTAPI_PORT: int = 8000
-    STREAMLIT_PORT: int = 8501
+    FASTAPI_PORT: int = 8010
+    STREAMLIT_PORT: int = 8511
     HETZNER_SERVER_IP: str = ""
     HETZNER_SSH_USER: str = "root"
     HETZNER_SSH_KEY_PATH: str = "~/.ssh/id_rsa"
