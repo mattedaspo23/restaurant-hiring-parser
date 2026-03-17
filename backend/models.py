@@ -24,6 +24,8 @@ class CandidateProfile(BaseModel):
     raw_text: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
+    gender: Optional[str] = None  # "M", "F", or None (unknown)
+    has_children: Optional[bool] = None  # True/False/None
     created_at: Optional[datetime] = None
 
 
@@ -36,6 +38,8 @@ class FilterConfig(BaseModel):
     availability: str = ""
     languages: List[str] = []
     bonus_filters: Optional[BonusFilters] = None
+    required_gender: Optional[str] = None  # "F" for cameriera, None = any
+    exclude_has_children_evening: bool = False
     created_at: Optional[datetime] = None
 
 

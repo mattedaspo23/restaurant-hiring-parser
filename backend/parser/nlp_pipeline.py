@@ -14,8 +14,11 @@ logger = logging.getLogger(__name__)
 KNOWN_ROLES = [
     "cuoco",
     "cameriere",
+    "cameriera",
     "barista",
     "pizzaiolo",
+    "pizzaiola",
+    "cuoca",
     "lavapiatti",
     "sommelier",
     "maitre",
@@ -25,6 +28,24 @@ KNOWN_ROLES = [
     "aiuto cuoco",
     "capo partita",
     "responsabile di sala",
+]
+
+ROLE_GENDER_MAP = {
+    "cameriera": "F",
+    "cuoca": "F",
+    "pizzaiola": "F",
+    "barista": None,
+    "cameriere": "M",
+    "cuoco": "M",
+    "pizzaiolo": "M",
+}
+
+GENDER_KEYWORDS_F = ["donna", "femmina", "sig.ra", "signora"]
+GENDER_KEYWORDS_M = ["uomo", "maschio"]
+
+CHILDREN_KEYWORDS = [
+    "figli", "figlio", "figlia", "bambino", "bambina",
+    "genitore", "madre", "padre", "mamma", "papà",
 ]
 
 KNOWN_SKILLS = [
@@ -59,6 +80,10 @@ KNOWN_SKILLS = [
     "catering",
     "banchetti",
     "buffet",
+    "lievitazione",
+    "impasto",
+    "pizza",
+    "forno",
 ]
 
 KNOWN_CERTS = [
@@ -202,6 +227,31 @@ def _extract_languages(text: str, doc) -> List[str]:
     return found
 
 
+def _extract_gender(text: str, role: Optional[str]) -> Optional[str]:
+    if role and role in ROLE_GENDER_MAP:
+        gender = ROLE_GENDER_MAP[role]
+        if gender is not None:
+            return gender
+
+    text_lower = text.lower()
+    for kw in GENDER_KEYWORDS_F:
+        if kw in text_lower:
+            return "F"
+    for kw in GENDER_KEYWORDS_M:
+        if kw in text_lower:
+            return "M"
+    return None
+
+
+def _extract_has_children(text: str) -> Optional[bool]:
+    text_lower = text.lower()
+    for kw in CHILDREN_KEYWORDS:
+        pattern = r"\b" + re.escape(kw) + r"\b"
+        if re.search(pattern, text_lower):
+            return True
+    return None
+
+
 def _extract_email(text: str) -> Optional[str]:
     match = re.search(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", text)
     return match.group(0) if match else None
@@ -222,11 +272,13 @@ def _openai_fallback(raw_text: str) -> dict:
         prompt = (
             "Extract the following from this CV/job listing text. "
             "Return ONLY valid JSON with these keys: "
-            "name (string), role (string, one of: cuoco, cameriere, barista, pizzaiolo, "
-            "lavapiatti, sommelier, maitre, pasticcere), "
+            "name (string), role (string, one of: cuoco, cuoca, cameriere, cameriera, barista, pizzaiolo, "
+            "pizzaiola, lavapiatti, sommelier, maitre, pasticcere), "
             "years_of_experience (float), skills (list of strings), "
             "certifications (list of strings), availability (string: full-time, part-time, weekends, evenings), "
-            "languages (list of strings), email (string or null), phone (string or null).\n\n"
+            "languages (list of strings), email (string or null), phone (string or null), "
+            "gender (string: 'M', 'F', or null - infer from role name or context), "
+            "has_children (boolean or null - true if text mentions children/kids/family with children).\n\n"
             f"Text:\n{raw_text[:4000]}"
         )
 
@@ -265,6 +317,8 @@ def parse_candidate(
     languages = _extract_languages(raw_text, doc)
     email = _extract_email(raw_text)
     phone = _extract_phone(raw_text)
+    gender = _extract_gender(raw_text, role)
+    has_children = _extract_has_children(raw_text)
 
     needs_fallback = (
         name is None
@@ -296,6 +350,10 @@ def parse_candidate(
             email = ai_result["email"]
         if not phone and ai_result.get("phone"):
             phone = ai_result["phone"]
+        if gender is None and ai_result.get("gender"):
+            gender = ai_result["gender"]
+        if has_children is None and ai_result.get("has_children") is not None:
+            has_children = ai_result["has_children"]
 
     has_haccp = any("haccp" in c.lower() for c in (certs or []))
 
@@ -313,4 +371,6 @@ def parse_candidate(
         raw_text=raw_text,
         email=email,
         phone=phone,
+        gender=gender,
+        has_children=has_children,
     )

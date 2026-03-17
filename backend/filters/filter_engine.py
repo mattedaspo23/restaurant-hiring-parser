@@ -5,12 +5,50 @@ from backend.models import CandidateProfile, FilterConfig, ScoredCandidate
 
 logger = logging.getLogger(__name__)
 
+ROLE_ALIASES = {
+    "cuoco": ["cuoco", "chef", "aiuto cuoco", "capo partita"],
+    "pizzaiolo": ["pizzaiolo", "pizzaiola"],
+    "cameriere": ["cameriere"],
+    "cameriera": ["cameriera"],
+    "barista": ["barista", "barman", "barmaid"],
+    "lavapiatti": ["lavapiatti"],
+}
+
+ROLE_SPECIFIC_SKILLS = {
+    "pizzaiolo": ["forno a legna", "impasto napoletano", "impasto", "pizza", "forno", "lievitazione"],
+    "cuoco": ["cucina italiana", "cucina internazionale", "griglia", "primi piatti", "secondi piatti"],
+    "barista": ["caffetteria", "latte art", "mixology", "cocktail"],
+    "cameriere": ["servizio al tavolo", "gestione sala", "mise en place", "cassa"],
+    "cameriera": ["servizio al tavolo", "gestione sala", "mise en place", "cassa"],
+}
+
 
 def _passes_hard_filters(candidate: CandidateProfile, config: FilterConfig) -> bool:
     """Exclude candidates who fail mandatory criteria."""
 
-    if config.role and candidate.role.lower() != config.role.lower():
-        return False
+    # Role hard filter using ROLE_ALIASES for strict matching
+    if config.role:
+        config_role_lower = config.role.lower()
+        candidate_role_lower = candidate.role.lower()
+        aliases = ROLE_ALIASES.get(config_role_lower)
+        if aliases:
+            if candidate_role_lower not in [a.lower() for a in aliases]:
+                return False
+        else:
+            if candidate_role_lower != config_role_lower:
+                return False
+
+    # Gender hard filter
+    if config.required_gender:
+        if candidate.gender and candidate.gender.upper() != config.required_gender.upper():
+            return False
+        # If gender unknown (None), let them pass
+
+    # Family + evening/weekend hard filter
+    if config.exclude_has_children_evening and candidate.has_children:
+        config_avail_lower = config.availability.lower() if config.availability else ""
+        if any(kw in config_avail_lower for kw in ["serale", "sera", "evenings", "weekend", "sabato", "finesettimana"]):
+            return False
 
     if config.min_years_exp > 0 and candidate.years_of_experience < config.min_years_exp:
         return False
@@ -196,6 +234,25 @@ def _compute_score(
         strengths.append(f"Disponibilità compatibile: {candidate.availability}")
     else:
         earned += MAX_AVAIL
+
+    # ── Role-specific skills bonus (max 10 pts) ───────────────────────────
+    MAX_ROLE_BONUS = 10.0
+    config_role_lower = config.role.lower() if config.role else ""
+    role_skills = ROLE_SPECIFIC_SKILLS.get(config_role_lower, [])
+    if role_skills:
+        max_possible += MAX_ROLE_BONUS
+        candidate_skills_lower = [s.lower() for s in candidate.skills]
+        matched_role_skills = [
+            s for s in role_skills if s.lower() in candidate_skills_lower
+        ]
+        if matched_role_skills:
+            ratio = len(matched_role_skills) / len(role_skills)
+            earned += MAX_ROLE_BONUS * ratio
+            strengths.append(
+                f"Competenze specifiche ruolo: {', '.join(matched_role_skills)}"
+            )
+        else:
+            gaps.append(f"Nessuna competenza specifica per {config_role_lower}")
 
     # ── Normalize to 0-100 ───────────────────────────────────────────────
     if max_possible > 0:

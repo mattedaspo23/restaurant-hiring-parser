@@ -62,7 +62,13 @@ def get_candidates(filters: Optional[Dict] = None) -> List[CandidateProfile]:
             query = query.eq("has_haccp", filters["has_haccp"])
 
     result = query.order("created_at", desc=True).execute()
-    return [CandidateProfile(**row) for row in result.data]
+    candidates = []
+    for row in result.data:
+        # Graceful fallback for new columns that may not exist in DB yet
+        row.setdefault("gender", None)
+        row.setdefault("has_children", None)
+        candidates.append(CandidateProfile(**row))
+    return candidates
 
 
 def save_filter_config(config: FilterConfig) -> str:
@@ -82,6 +88,13 @@ def save_filter_config(config: FilterConfig) -> str:
     return config_id
 
 
+def _normalize_filter_row(row: dict) -> dict:
+    """Add defaults for new columns that may not exist in DB yet."""
+    row.setdefault("required_gender", None)
+    row.setdefault("exclude_has_children_evening", False)
+    return row
+
+
 def get_filter_configs() -> List[FilterConfig]:
     client = get_client()
     result = (
@@ -90,7 +103,7 @@ def get_filter_configs() -> List[FilterConfig]:
         .order("created_at", desc=True)
         .execute()
     )
-    return [FilterConfig(**row) for row in result.data]
+    return [FilterConfig(**_normalize_filter_row(row)) for row in result.data]
 
 
 def get_filter_config(config_id: str) -> FilterConfig:
@@ -100,7 +113,7 @@ def get_filter_config(config_id: str) -> FilterConfig:
     )
     if not result.data:
         raise ValueError(f"Filter config {config_id} not found")
-    return FilterConfig(**result.data[0])
+    return FilterConfig(**_normalize_filter_row(result.data[0]))
 
 
 def save_scoring_record(record: ScoringRecord) -> str:
@@ -140,9 +153,12 @@ def get_candidates_with_scores(config_id: str) -> List[dict]:
             .execute()
         )
         if candidate.data:
+            cand_row = candidate.data[0]
+            cand_row.setdefault("gender", None)
+            cand_row.setdefault("has_children", None)
             results.append(
                 {
-                    "candidate": CandidateProfile(**candidate.data[0]).model_dump(),
+                    "candidate": CandidateProfile(**cand_row).model_dump(),
                     "score": score_row["score"],
                     "strengths": score_row["strengths"],
                     "gaps": score_row["gaps"],

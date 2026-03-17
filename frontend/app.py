@@ -80,7 +80,7 @@ if page == "Configurazione Filtri":
             value=loaded_config["name"] if loaded_config else "",
         )
 
-        role_options = ["cuoco", "cameriere", "barista", "pizzaiolo", "lavapiatti", "altro"]
+        role_options = ["cuoco", "cameriere", "cameriera", "barista", "pizzaiolo", "lavapiatti", "altro"]
         default_role_idx = 0
         if loaded_config and loaded_config.get("role"):
             try:
@@ -117,6 +117,22 @@ if page == "Configurazione Filtri":
                 default_avail_idx = 0
         availability = st.selectbox(
             "Disponibilità", avail_options, index=default_avail_idx
+        )
+
+        # Gender filter - auto-check when role is "cameriera"
+        default_gender = role == "cameriera"
+        if loaded_config:
+            default_gender = loaded_config.get("required_gender") == "F" or (role == "cameriera")
+        solo_donne = st.checkbox(
+            "Solo donne (cameriera)",
+            value=default_gender,
+        )
+
+        # Family constraint filter
+        default_family = loaded_config.get("exclude_has_children_evening", False) if loaded_config else False
+        exclude_children = st.checkbox(
+            "Escludi candidati con figli (per turni serali/weekend)",
+            value=default_family,
         )
 
         lang_options = [
@@ -172,6 +188,8 @@ if page == "Configurazione Filtri":
             "skills": bonus_skills,
             "weights": bonus_weights,
         } if bonus_skills else None,
+        "required_gender": "F" if solo_donne else None,
+        "exclude_has_children_evening": exclude_children,
     }
 
     if loaded_config:
@@ -279,6 +297,7 @@ elif page == "Candidati Shortlist":
                 rows.append({
                     "Nome": cand.get("name", "N/A"),
                     "Ruolo": cand.get("role", "N/A"),
+                    "Genere": cand.get("gender", "") or "",
                     "Punteggio": record["score"],
                     "Fonte": cand.get("source", "N/A"),
                     "Punti di Forza": ", ".join(record.get("strengths", [])),
